@@ -145,4 +145,143 @@
   const repoUser = "yka1530"; 
   const repoName = "AaG";
   const folder   = "tracks";
- 
+  const covers   = "covers";
+
+  const audio = document.getElementById('audio');
+  const titleEl = document.getElementById('title');
+  const coverEl = document.getElementById('cover');
+  const playlistEl = document.getElementById('playlist');
+  const progress = document.getElementById('progress');
+  const currentTimeEl = document.getElementById('currentTime');
+  const durationEl = document.getElementById('duration');
+  const playBtn = document.getElementById('play');
+  const nextBtn = document.getElementById('next');
+  const prevBtn = document.getElementById('prev');
+  const backBtn = document.getElementById('back');
+  const forwardBtn = document.getElementById('forward');
+  const speedBtns = document.querySelectorAll('.speed button[data-speed]');
+  const shuffleBtn = document.getElementById('shuffle');
+  const repeatBtn = document.getElementById('repeat');
+
+  let tracks = [];
+  let current = 0;
+  let shuffle = false;
+  let repeat = false;
+
+  let savedTrack = parseInt(localStorage.getItem('lastTrack')) || 0;
+  let savedTime = parseFloat(localStorage.getItem('lastTime')) || 0;
+
+  async function fetchTracks(){
+    const url = `https://api.github.com/repos/${repoUser}/${repoName}/contents/${folder}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    tracks = data
+      .filter(f => f.name.endsWith(".mp3") || f.name.endsWith(".mp4"))
+      .map(f => ({
+        name: f.name,
+        url: f.download_url,
+        cover: `https://raw.githubusercontent.com/${repoUser}/${repoName}/main/${covers}/${f.name.replace(/\.(mp3|mp4)$/,'')}.jpg`
+      }));
+    renderPlaylist();
+    loadTrack(savedTrack);
+  }
+
+  function renderPlaylist(){
+    playlistEl.innerHTML = "";
+    tracks.forEach((track, i)=>{
+      const item = document.createElement("div");
+      item.className = "playlist-item";
+      item.textContent = track.name;
+      item.onclick = ()=> loadTrack(i);
+      playlistEl.appendChild(item);
+    });
+  }
+
+  function formatTime(sec){
+    const m = Math.floor(sec/60);
+    const s = Math.floor(sec%60).toString().padStart(2,'0');
+    return `${m}:${s}`;
+  }
+
+  function loadTrack(i){
+    current = i;
+    const track = tracks[i];
+    audio.src = track.url;
+    titleEl.textContent = track.name;
+    coverEl.src = track.cover;
+    audio.currentTime = (i===savedTrack) ? savedTime : 0;
+    audio.play();
+    playBtn.textContent = "⏸️";
+    updateActive();
+    saveProgress();
+  }
+
+  function updateActive(){
+    document.querySelectorAll(".playlist-item").forEach((el, i)=>{
+      el.classList.toggle("active", i===current);
+    });
+  }
+
+  playBtn.onclick = () => {
+    if(audio.paused){ audio.play(); playBtn.textContent="⏸️"; }
+    else{ audio.pause(); playBtn.textContent="▶️"; }
+  };
+
+  nextBtn.onclick = ()=> nextTrack();
+  prevBtn.onclick = ()=> prevTrack();
+  backBtn.onclick = ()=>{ audio.currentTime = Math.max(0, audio.currentTime-10); };
+  forwardBtn.onclick = ()=>{ audio.currentTime = Math.min(audio.duration, audio.currentTime+10); };
+
+  speedBtns.forEach(btn=>{
+    btn.onclick = ()=>{
+      speedBtns.forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      audio.playbackRate = parseFloat(btn.dataset.speed);
+    };
+  });
+
+  shuffleBtn.onclick = ()=>{ shuffle = !shuffle; shuffleBtn.classList.toggle('active'); };
+  repeatBtn.onclick = ()=>{ repeat = !repeat; repeatBtn.classList.toggle('active'); };
+
+  audio.ontimeupdate = ()=>{
+    if(audio.duration){
+      progress.value = (audio.currentTime / audio.duration) * 100;
+      currentTimeEl.textContent = formatTime(audio.currentTime);
+      durationEl.textContent = formatTime(audio.duration);
+      saveProgress();
+    }
+  };
+  progress.oninput = ()=>{ audio.currentTime = (progress.value/100)*audio.duration; };
+
+  function saveProgress(){
+    localStorage.setItem('lastTrack', current);
+    localStorage.setItem('lastTime', audio.currentTime);
+  }
+
+  function nextTrack(){
+    if(shuffle){
+      let next = Math.floor(Math.random()*tracks.length);
+      loadTrack(next);
+    } else {
+      loadTrack((current+1)%tracks.length);
+    }
+  }
+
+  function prevTrack(){
+    if(shuffle){
+      let prev = Math.floor(Math.random()*tracks.length);
+      loadTrack(prev);
+    } else {
+      loadTrack((current-1+tracks.length)%tracks.length);
+    }
+  }
+
+  audio.onended = ()=>{
+    if(repeat) loadTrack(current);
+    else nextTrack();
+  }
+
+  fetchTracks();
+</script>
+</body>
+</html>
