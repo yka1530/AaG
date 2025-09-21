@@ -19,8 +19,10 @@ header {
   background:#000;
   font-size:22px;
   font-weight:bold;
-  color:#1db954;
-  text-align:center;
+  color:#6614b8;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
 }
 .container {
   display:flex;
@@ -41,7 +43,7 @@ header {
   border-bottom:1px solid #222;
 }
 .playlist-item:hover { background:#282828; }
-.playlist-item.active { background:#1db954; color:#000; }
+.playlist-item.active { background:#6614b8; color:#000; }
 .player {
   flex:1;
   min-width:300px;
@@ -67,13 +69,12 @@ header {
   padding:10px 16px;
   border:0;
   border-radius:50%;
-  background:#1db954;
+  background:#6614b8;
   color:#fff;
   font-size:18px;
   cursor:pointer;
 }
-.controls button:hover { background:#1ed760; }
-.controls button.active { background:#1ed760; color:#000; }
+.controls button:hover { background:#7f33d1; }
 .speedDial {
   position:relative;
   margin-top:15px;
@@ -88,6 +89,13 @@ header {
 }
 #progress { width:80%; margin:10px 0; }
 .time { display:flex; justify-content:space-between; width:80%; font-size:14px; margin-bottom:5px; }
+footer {
+  padding:10px;
+  background:#000;
+  font-size:14px;
+  text-align:center;
+  color:#aaa;
+}
 @media(max-width:700px){
   .container { flex-direction:column; }
   .playlist { width:100%; max-height:150px; order:2; border-right:none; border-top:1px solid #333; }
@@ -97,7 +105,9 @@ header {
 </style>
 </head>
 <body>
-<header>Highfy</header>
+<header>
+  <span>Highfy</span>
+</header>
 <div class="container">
 <div class="playlist" id="playlist"></div>
 <div class="player">
@@ -110,13 +120,11 @@ header {
 <input type="range" id="progress" min="0" max="100" value="0">
 <audio id="audio" preload="metadata"></audio>
 <div class="controls">
-  <button id="shuffle">⤯</button>
   <button id="prev">◄◄</button>
   <button id="back">⟲</button>
   <button id="play">▶</button>
   <button id="forward">⟳</button>
   <button id="next">►►</button>
-  <button id="repeat">⟲⟳</button>
 </div>
 <div class="speedDial">
   <select id="speedSelect">
@@ -132,6 +140,7 @@ header {
 </div>
 </div>
 </div>
+<footer>© 2025 Highfy. جميع الحقوق محفوظة.</footer>
 
 <script>
 const repoUser="yka1530"; 
@@ -151,16 +160,12 @@ const prevBtn=document.getElementById('prev');
 const backBtn=document.getElementById('back');
 const forwardBtn=document.getElementById('forward');
 const speedSelect=document.getElementById('speedSelect');
-const shuffleBtn=document.getElementById('shuffle');
-const repeatBtn=document.getElementById('repeat');
 
 let tracks=[];
 let current=0;
-let isShuffle=false;
-let isRepeat=false;
-
 let savedTrack=parseInt(localStorage.getItem('lastTrack'))||0;
 let savedTime=parseFloat(localStorage.getItem('lastTime'))||0;
+let savedSpeed=parseFloat(localStorage.getItem('lastSpeed'))||1;
 
 async function fetchTracks(){
   const url=`https://api.github.com/repos/${repoUser}/${repoName}/contents/${folder}`;
@@ -172,6 +177,8 @@ async function fetchTracks(){
   }));
   renderPlaylist();
   loadTrack(savedTrack);
+  audio.playbackRate=savedSpeed;
+  speedSelect.value=savedSpeed;
 }
 
 function renderPlaylist(){
@@ -209,6 +216,7 @@ async function loadTrack(i){
   titleEl.textContent=track.name;
   coverEl.src=await fetchCover(track.name);
   audio.currentTime=(i===savedTrack)?savedTime:0;
+  audio.playbackRate=savedSpeed;
   audio.play();
   playBtn.textContent="❚❚";
   updateActive();
@@ -227,16 +235,11 @@ prevBtn.onclick=()=>prevTrack();
 backBtn.onclick=()=>{audio.currentTime=Math.max(0,audio.currentTime-10);};
 forwardBtn.onclick=()=>{audio.currentTime=Math.min(audio.duration,audio.currentTime+10);};
 
-shuffleBtn.onclick=()=>{
-  isShuffle=!isShuffle;
-  shuffleBtn.classList.toggle("active",isShuffle);
+speedSelect.onchange=()=>{
+  savedSpeed=parseFloat(speedSelect.value);
+  audio.playbackRate=savedSpeed;
+  localStorage.setItem('lastSpeed',savedSpeed);
 };
-repeatBtn.onclick=()=>{
-  isRepeat=!isRepeat;
-  repeatBtn.classList.toggle("active",isRepeat);
-};
-
-speedSelect.onchange=()=>{audio.playbackRate=parseFloat(speedSelect.value);};
 
 audio.ontimeupdate=()=>{
   if(audio.duration){
@@ -248,25 +251,13 @@ audio.ontimeupdate=()=>{
 };
 progress.oninput=()=>{audio.currentTime=(progress.value/100)*audio.duration;};
 
-function saveProgress(){localStorage.setItem('lastTrack',current);localStorage.setItem('lastTime',audio.currentTime);}
-
-function nextTrack(){
-  if(isRepeat){
-    loadTrack(current);
-    return;
-  }
-  if(isShuffle){
-    let i=Math.floor(Math.random()*tracks.length);
-    loadTrack(i);
-  } else {
-    loadTrack((current+1)%tracks.length);
-  }
+function saveProgress(){
+  localStorage.setItem('lastTrack',current);
+  localStorage.setItem('lastTime',audio.currentTime);
 }
 
-function prevTrack(){
-  loadTrack((current-1+tracks.length)%tracks.length);
-}
-
+function nextTrack(){loadTrack((current+1)%tracks.length);}
+function prevTrack(){loadTrack((current-1+tracks.length)%tracks.length);}
 audio.onended=()=>nextTrack();
 
 fetchTracks();
