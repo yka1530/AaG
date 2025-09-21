@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Highfy 🎵</title>
+<title>Highfy</title>
 <style>
 body {
   margin:0;
@@ -73,16 +73,19 @@ header {
   cursor:pointer;
 }
 .controls button:hover { background:#1ed760; }
-.speed button, #shuffle, #repeat {
-  margin:4px;
+.controls button.active { background:#1ed760; color:#000; }
+.speedDial {
+  position:relative;
+  margin-top:15px;
+}
+.speedDial select {
   padding:6px 12px;
-  border:0;
   border-radius:6px;
+  border:none;
   background:#333;
   color:#fff;
   cursor:pointer;
 }
-.speed button.active, #shuffle.active, #repeat.active { background:#1db954; color:#000; }
 #progress { width:80%; margin:10px 0; }
 .time { display:flex; justify-content:space-between; width:80%; font-size:14px; margin-bottom:5px; }
 @media(max-width:700px){
@@ -94,7 +97,7 @@ header {
 </style>
 </head>
 <body>
-<header>Highfy 🎶</header>
+<header>Highfy</header>
 <div class="container">
 <div class="playlist" id="playlist"></div>
 <div class="player">
@@ -107,23 +110,25 @@ header {
 <input type="range" id="progress" min="0" max="100" value="0">
 <audio id="audio" preload="metadata"></audio>
 <div class="controls">
-  <button id="prev">Prev</button>
-  <button id="back">-10s</button>
-  <button id="play">Play</button>
-  <button id="forward">+10s</button>
-  <button id="next">Next</button>
+  <button id="shuffle">⤯</button>
+  <button id="prev">◄◄</button>
+  <button id="back">⟲</button>
+  <button id="play">▶</button>
+  <button id="forward">⟳</button>
+  <button id="next">►►</button>
+  <button id="repeat">⟲⟳</button>
 </div>
-<div class="speed">
-  <button data-speed="0.25">0.25x</button>
-  <button data-speed="0.5">0.5x</button>
-  <button data-speed="0.75">0.75x</button>
-  <button data-speed="1" class="active">1x</button>
-  <button data-speed="1.25">1.25x</button>
-  <button data-speed="1.5">1.5x</button>
-  <button data-speed="1.75">1.75x</button>
-  <button data-speed="2">2x</button>
-  <button id="shuffle">Shuffle</button>
-  <button id="repeat">Repeat</button>
+<div class="speedDial">
+  <select id="speedSelect">
+    <option value="0.25">0.25x</option>
+    <option value="0.5">0.5x</option>
+    <option value="0.75">0.75x</option>
+    <option value="1" selected>1x</option>
+    <option value="1.25">1.25x</option>
+    <option value="1.5">1.5x</option>
+    <option value="1.75">1.75x</option>
+    <option value="2">2x</option>
+  </select>
 </div>
 </div>
 </div>
@@ -132,7 +137,6 @@ header {
 const repoUser="yka1530"; 
 const repoName="AaG";
 const folder="tracks";
-const covers="covers";
 
 const audio=document.getElementById('audio');
 const titleEl=document.getElementById('title');
@@ -146,14 +150,14 @@ const nextBtn=document.getElementById('next');
 const prevBtn=document.getElementById('prev');
 const backBtn=document.getElementById('back');
 const forwardBtn=document.getElementById('forward');
-const speedBtns=document.querySelectorAll('.speed button[data-speed]');
+const speedSelect=document.getElementById('speedSelect');
 const shuffleBtn=document.getElementById('shuffle');
 const repeatBtn=document.getElementById('repeat');
 
 let tracks=[];
 let current=0;
-let shuffle=false;
-let repeat=false;
+let isShuffle=false;
+let isRepeat=false;
 
 let savedTrack=parseInt(localStorage.getItem('lastTrack'))||0;
 let savedTime=parseFloat(localStorage.getItem('lastTime'))||0;
@@ -163,9 +167,8 @@ async function fetchTracks(){
   const res=await fetch(url);
   const data=await res.json();
   tracks=data.filter(f=>f.name.endsWith(".mp3")||f.name.endsWith(".mp4")).map(f=>({
-    name:f.name,
-    url:f.download_url,
-    cover:`https://raw.githubusercontent.com/${repoUser}/${repoName}/main/${covers}/${f.name.replace(/\.(mp3|mp4)$/,'')}.jpg`
+    name:f.name.replace(/\.(mp3|mp4)$/,''),
+    url:f.download_url
   }));
   renderPlaylist();
   loadTrack(savedTrack);
@@ -188,15 +191,26 @@ function formatTime(sec){
   return `${m}:${s}`;
 }
 
-function loadTrack(i){
+async function fetchCover(trackName){
+  try{
+    const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(trackName)}&entity=song&limit=1`);
+    const data = await response.json();
+    if(data.results && data.results[0] && data.results[0].artworkUrl100){
+      return data.results[0].artworkUrl100.replace('100x100bb', '300x300bb');
+    }
+  }catch(e){console.log("Cover not found", e);}
+  return "https://via.placeholder.com/300?text=No+Cover";
+}
+
+async function loadTrack(i){
   current=i;
   const track=tracks[i];
   audio.src=track.url;
   titleEl.textContent=track.name;
-  coverEl.src=track.cover;
+  coverEl.src=await fetchCover(track.name);
   audio.currentTime=(i===savedTrack)?savedTime:0;
   audio.play();
-  playBtn.textContent="Pause";
+  playBtn.textContent="❚❚";
   updateActive();
   saveProgress();
 }
@@ -207,16 +221,22 @@ function updateActive(){
   });
 }
 
-playBtn.onclick=()=>{if(audio.paused){audio.play();playBtn.textContent="Pause";}else{audio.pause();playBtn.textContent="Play";}};
+playBtn.onclick=()=>{if(audio.paused){audio.play(); playBtn.textContent="❚❚";}else{audio.pause(); playBtn.textContent="▶";}};
 nextBtn.onclick=()=>nextTrack();
 prevBtn.onclick=()=>prevTrack();
 backBtn.onclick=()=>{audio.currentTime=Math.max(0,audio.currentTime-10);};
 forwardBtn.onclick=()=>{audio.currentTime=Math.min(audio.duration,audio.currentTime+10);};
 
-speedBtns.forEach(btn=>{btn.onclick=()=>{speedBtns.forEach(b=>b.classList.remove("active"));btn.classList.add("active");audio.playbackRate=parseFloat(btn.dataset.speed);};});
+shuffleBtn.onclick=()=>{
+  isShuffle=!isShuffle;
+  shuffleBtn.classList.toggle("active",isShuffle);
+};
+repeatBtn.onclick=()=>{
+  isRepeat=!isRepeat;
+  repeatBtn.classList.toggle("active",isRepeat);
+};
 
-shuffleBtn.onclick=()=>{shuffle=!shuffle;shuffleBtn.classList.toggle('active');};
-repeatBtn.onclick=()=>{repeat=!repeat;repeatBtn.classList.toggle('active');};
+speedSelect.onchange=()=>{audio.playbackRate=parseFloat(speedSelect.value);};
 
 audio.ontimeupdate=()=>{
   if(audio.duration){
@@ -230,9 +250,24 @@ progress.oninput=()=>{audio.currentTime=(progress.value/100)*audio.duration;};
 
 function saveProgress(){localStorage.setItem('lastTrack',current);localStorage.setItem('lastTime',audio.currentTime);}
 
-function nextTrack(){if(shuffle){loadTrack(Math.floor(Math.random()*tracks.length));}else{loadTrack((current+1)%tracks.length);}}
-function prevTrack(){if(shuffle){loadTrack(Math.floor(Math.random()*tracks.length));}else{loadTrack((current-1+tracks.length)%tracks.length);}}
-audio.onended=()=>{if(repeat)loadTrack(current);else nextTrack();};
+function nextTrack(){
+  if(isRepeat){
+    loadTrack(current);
+    return;
+  }
+  if(isShuffle){
+    let i=Math.floor(Math.random()*tracks.length);
+    loadTrack(i);
+  } else {
+    loadTrack((current+1)%tracks.length);
+  }
+}
+
+function prevTrack(){
+  loadTrack((current-1+tracks.length)%tracks.length);
+}
+
+audio.onended=()=>nextTrack();
 
 fetchTracks();
 </script>
