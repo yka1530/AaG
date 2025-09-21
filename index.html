@@ -3,101 +3,99 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>مشغل الأغاني</title>
+  <title>My Stream Service</title>
   <style>
-    body{font-family:sans-serif;background:#0d1117;color:#e6eef6;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
-    .player{background:#161b22;padding:20px;border-radius:12px;text-align:center;max-width:400px;width:100%}
-    h1{font-size:20px;margin-bottom:16px}
-    button{margin:4px;padding:10px 16px;border:0;border-radius:6px;background:#238636;color:#fff;cursor:pointer}
-    button:hover{background:#2ea043}
-    .speed button{background:#444;margin:3px}
-    .speed button.active{background:#238636}
-    #title{margin:12px 0;font-weight:bold}
+    body{font-family:system-ui,Arial;background:#0f1720;color:#e6eef6;margin:0;padding:20px}
+    .player{max-width:720px;margin:0 auto;background:#101828;padding:16px;border-radius:10px;box-shadow:0 6px 24px rgba(2,6,23,.6)}
+    h1{margin:0 0 12px;font-size:20px}
+    .track{display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px;cursor:pointer}
+    .track:hover{background:#0b1220}
+    .cover{width:56px;height:56px;border-radius:6px;object-fit:cover;background:#06101a}
+    .meta{flex:1}
+    .meta b{display:block}
+    .controls{display:flex;gap:8px;align-items:center;margin-top:12px}
+    button{padding:8px 12px;border-radius:8px;border:0;background:#0ea5a4;color:#012;cursor:pointer}
   </style>
 </head>
 <body>
   <div class="player">
-    <h1>🎵 مشغل الأغاني</h1>
-    <div id="title">—</div>
-    <audio id="audio" preload="metadata"></audio>
-    <div>
-      <button id="prev">⏮️</button>
-      <button id="back">⏪ 10s</button>
-      <button id="play">▶️</button>
-      <button id="forward">⏩ 10s</button>
-      <button id="next">⏭️</button>
+    <h1>مشغل الأغاني</h1>
+    <div id="playlist"></div>
+
+    <div class="controls">
+      <button id="prev">السابق</button>
+      <button id="play">تشغيل</button>
+      <button id="next">التالي</button>
+      <div id="current" style="margin-left:auto"></div>
     </div>
-    <div class="speed">
-      <button data-speed="0.5">0.5x</button>
-      <button data-speed="1" class="active">1x</button>
-      <button data-speed="1.5">1.5x</button>
-      <button data-speed="2">2x</button>
-    </div>
+
+    <audio id="audio" preload="none"></audio>
   </div>
 
   <script>
-    const repoUser = "yka1530";   // ← غيّرها لاسم حسابك
-    const repoName = "AaG"; // ← غيّرها لاسم المستودع
-    const folder   = "tracks";
-
+    const manifestUrl = './manifest.json'; // غيره لمكان المانيفست
+    const playlistEl = document.getElementById('playlist');
     const audio = document.getElementById('audio');
     const playBtn = document.getElementById('play');
-    const nextBtn = document.getElementById('next');
     const prevBtn = document.getElementById('prev');
-    const backBtn = document.getElementById('back');
-    const forwardBtn = document.getElementById('forward');
-    const titleEl = document.getElementById('title');
-    const speedBtns = document.querySelectorAll('.speed button');
+    const nextBtn = document.getElementById('next');
+    const currentEl = document.getElementById('current');
 
     let tracks = [];
-    let history = [];
-    let idx = -1;
+    let idx = 0;
+    let playing = false;
 
-    async function fetchTracks(){
-      const url = `https://api.github.com/repos/${repoUser}/${repoName}/contents/${folder}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      tracks = data
-        .filter(f => f.name.endsWith(".mp3") || f.name.endsWith(".mp4"))
-        .map(f => f.download_url);
-      playRandom();
+    async function loadManifest(){
+      const r = await fetch(manifestUrl);
+      tracks = await r.json();
+      renderList();
+      loadTrack(0);
+    }
+
+    function renderList(){
+      playlistEl.innerHTML = '';
+      tracks.forEach((t,i)=>{
+        const el = document.createElement('div');
+        el.className = 'track';
+        el.innerHTML = `
+          <img class="cover" src="${t.cover || ''}" alt="cover" onerror="this.style.display='none'">
+          <div class="meta"><b>${t.title}</b><small>${t.artist || ''}</small></div>
+          <div>${formatTime(t.duration)}</div>
+        `;
+        el.onclick = ()=> { loadTrack(i); playAudio(); }
+        playlistEl.appendChild(el);
+      });
     }
 
     function loadTrack(i){
-      audio.src = tracks[i];
-      titleEl.textContent = tracks[i].split('/').pop();
-      audio.play();
-      playBtn.textContent = "⏸️";
+      if(!tracks[i]) return;
+      idx = i;
+      audio.src = tracks[i].url;
+      currentEl.textContent = `${tracks[i].title} — ${tracks[i].artist||''}`;
+      highlightCurrent();
     }
 
-    function playRandom(){
-      if(!tracks.length) return;
-      const i = Math.floor(Math.random()*tracks.length);
-      history.push(i);
-      idx = history.length - 1;
-      loadTrack(i);
+    function highlightCurrent(){
+      [...playlistEl.children].forEach((c,j)=> c.style.background = j===idx ? '#06202a' : '');
     }
 
-    playBtn.onclick = () => {
-      if(audio.paused){ audio.play(); playBtn.textContent="⏸️"; }
-      else{ audio.pause(); playBtn.textContent="▶️"; }
-    };
+    function playAudio(){
+      audio.play().then(()=>{ playing=true; playBtn.textContent='إيقاف' }).catch(e=>{ console.error(e); alert('خطأ في تشغيل الملف أو CORS') });
+    }
+    function pauseAudio(){ audio.pause(); playing=false; playBtn.textContent='تشغيل' }
 
-    nextBtn.onclick = playRandom;
-    prevBtn.onclick = () => { if(idx>0){ idx--; loadTrack(history[idx]); } };
-    backBtn.onclick = () => { audio.currentTime = Math.max(0, audio.currentTime-10); };
-    forwardBtn.onclick = () => { audio.currentTime = Math.min(audio.duration, audio.currentTime+10); };
-
-    speedBtns.forEach(btn=>{
-      btn.onclick = ()=>{
-        speedBtns.forEach(b=>b.classList.remove("active"));
-        btn.classList.add("active");
-        audio.playbackRate = parseFloat(btn.dataset.speed);
-      };
+    playBtn.addEventListener('click', ()=> {
+      if(playing) pauseAudio(); else playAudio();
     });
+    prevBtn.addEventListener('click', ()=> { idx = (idx-1+tracks.length)%tracks.length; loadTrack(idx); playAudio(); });
+    nextBtn.addEventListener('click', ()=> { idx = (idx+1)%tracks.length; loadTrack(idx); playAudio(); });
 
-    audio.onended = playRandom;
-    fetchTracks();
+    audio.addEventListener('ended', ()=> { nextBtn.click(); });
+
+    function formatTime(t){ return t? new Date(t*1000).toISOString().substr(14,5):'' }
+
+    // البداية
+    loadManifest();
   </script>
 </body>
 </html>
