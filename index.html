@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مشغل الأغاني</title>
+  <style>
+    body{font-family:sans-serif;background:#0d1117;color:#e6eef6;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
+    .player{background:#161b22;padding:20px;border-radius:12px;text-align:center;max-width:400px;width:100%}
+    h1{font-size:20px;margin-bottom:16px}
+    button{margin:4px;padding:10px 16px;border:0;border-radius:6px;background:#238636;color:#fff;cursor:pointer}
+    button:hover{background:#2ea043}
+    .speed button{background:#444;margin:3px}
+    .speed button.active{background:#238636}
+    #title{margin:12px 0;font-weight:bold}
+  </style>
+</head>
+<body>
+  <div class="player">
+    <h1>🎵 مشغل الأغاني</h1>
+    <div id="title">—</div>
+    <audio id="audio" preload="metadata"></audio>
+    <div>
+      <button id="prev">⏮️</button>
+      <button id="back">⏪ 10s</button>
+      <button id="play">▶️</button>
+      <button id="forward">⏩ 10s</button>
+      <button id="next">⏭️</button>
+    </div>
+    <div class="speed">
+      <button data-speed="0.5">0.5x</button>
+      <button data-speed="1" class="active">1x</button>
+      <button data-speed="1.5">1.5x</button>
+      <button data-speed="2">2x</button>
+    </div>
+  </div>
+
+  <script>
+    const repoUser = "<username>";   // ← غيّرها لاسم حسابك
+    const repoName = "music-stream"; // ← غيّرها لاسم المستودع
+    const folder   = "tracks";
+
+    const audio = document.getElementById('audio');
+    const playBtn = document.getElementById('play');
+    const nextBtn = document.getElementById('next');
+    const prevBtn = document.getElementById('prev');
+    const backBtn = document.getElementById('back');
+    const forwardBtn = document.getElementById('forward');
+    const titleEl = document.getElementById('title');
+    const speedBtns = document.querySelectorAll('.speed button');
+
+    let tracks = [];
+    let history = [];
+    let idx = -1;
+
+    async function fetchTracks(){
+      const url = `https://api.github.com/repos/${repoUser}/${repoName}/contents/${folder}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      tracks = data
+        .filter(f => f.name.endsWith(".mp3") || f.name.endsWith(".mp4"))
+        .map(f => f.download_url);
+      playRandom();
+    }
+
+    function loadTrack(i){
+      audio.src = tracks[i];
+      titleEl.textContent = tracks[i].split('/').pop();
+      audio.play();
+      playBtn.textContent = "⏸️";
+    }
+
+    function playRandom(){
+      if(!tracks.length) return;
+      const i = Math.floor(Math.random()*tracks.length);
+      history.push(i);
+      idx = history.length - 1;
+      loadTrack(i);
+    }
+
+    playBtn.onclick = () => {
+      if(audio.paused){ audio.play(); playBtn.textContent="⏸️"; }
+      else{ audio.pause(); playBtn.textContent="▶️"; }
+    };
+
+    nextBtn.onclick = playRandom;
+    prevBtn.onclick = () => { if(idx>0){ idx--; loadTrack(history[idx]); } };
+    backBtn.onclick = () => { audio.currentTime = Math.max(0, audio.currentTime-10); };
+    forwardBtn.onclick = () => { audio.currentTime = Math.min(audio.duration, audio.currentTime+10); };
+
+    speedBtns.forEach(btn=>{
+      btn.onclick = ()=>{
+        speedBtns.forEach(b=>b.classList.remove("active"));
+        btn.classList.add("active");
+        audio.playbackRate = parseFloat(btn.dataset.speed);
+      };
+    });
+
+    audio.onended = playRandom;
+    fetchTracks();
+  </script>
+</body>
+</html>
